@@ -114,6 +114,7 @@ function llmstats_server_probe_requests($server)
         $requests['swap_running'] = $base . '/running';
         $requests['swap_stats'] = $base . '/api/metrics/stats';
         $requests['swap_perf'] = $base . '/api/performance';
+        $requests['swap_activity'] = $base . '/api/metrics/activity';
     }
 
     return $requests;
@@ -621,17 +622,6 @@ function llmstats_swap_gpu_summary($results)
     return round($used / 1024, 1) . '/' . round($total / 1024, 1) . ' GB';
 }
 
-function llmstats_swap_throughput_summary($results)
-{
-    $stats = llmstats_http_json($results['swap_stats'] ?? null);
-    $p50 = $stats['gen_histogram']['p50'] ?? null;
-    if (!is_numeric($p50) || (float)$p50 <= 0) {
-        return '';
-    }
-
-    return round((float)$p50, 1) . ' tok/s';
-}
-
 function llmstats_swap_process_memory($running)
 {
     // Real per-model VRAM, possible only when this Unraid host is the GPU
@@ -693,6 +683,65 @@ function llmstats_swap_process_memory($running)
     return $result; // model id => MiB
 }
 
+function llmstats_swap_activity_stats($results)
+{
+    // Per-model generation speed and load-time estimates from the request
+    // activity feed. Speed is the median tokens/sec of recent requests. Load
+    // time is inferred from the slowest request's residual: total duration
+    // minus pure inference time; a load-triggering request carries the swap
+    // wait in that residual.
+    $activity = llmstats_http_json($results['swap_activity'] ?? null);
+    $entries = $activity['data'] ?? null;
+    if (!llmstats_array_is_list($entries)) {
+        return [];
+    }
+
+    $speeds = [];
+    $residuals = [];
+    $seen = 0;
+    foreach ($entries as $entry) {
+        if (!is_array($entry) || ++$seen > 300) {
+            break;
+        }
+        $model = (string)($entry['model'] ?? '');
+        $tokens = is_array($entry['tokens'] ?? null) ? $entry['tokens'] : [];
+        if ($model === '') {
+            continue;
+        }
+
+        $tps = (float)($tokens['tokens_per_second'] ?? 0);
+        $pps = (float)($tokens['prompt_per_second'] ?? 0);
+        $out = (float)($tokens['output_tokens'] ?? 0);
+        $in = (float)($tokens['input_tokens'] ?? 0);
+        $duration = (float)($entry['duration_ms'] ?? 0) / 1000.0;
+
+        if ($tps > 0) {
+            $speeds[$model][] = $tps;
+        }
+        if ($tps > 0 && $duration > 0) {
+            $inference = $out / $tps + ($pps > 0 ? $in / $pps : 0);
+            $residual = $duration - $inference;
+            if ($residual > 0) {
+                $residuals[$model] = max($residuals[$model] ?? 0, $residual);
+            }
+        }
+    }
+
+    $stats = [];
+    foreach ($speeds as $model => $list) {
+        sort($list);
+        $stats[$model]['speed'] = round($list[(int)floor((count($list) - 1) / 2)], 1) . ' t/s';
+    }
+    foreach ($residuals as $model => $residual) {
+        // Residuals under a few seconds are queueing noise, not model loads.
+        if ($residual >= 3) {
+            $stats[$model]['load'] = '~' . (int)round($residual) . 's';
+        }
+    }
+
+    return $stats;
+}
+
 function llmstats_build_llamaswap_models($results)
 {
     $listing = llmstats_http_json($results['swap_models'] ?? null);
@@ -709,6 +758,7 @@ function llmstats_build_llamaswap_models($results)
     }
 
     $vram = llmstats_swap_process_memory($running);
+    $activity = llmstats_swap_activity_stats($results);
 
     $models = [];
     foreach (llmstats_llama_entry_list($listing) as $entry) {
@@ -721,6 +771,12 @@ function llmstats_build_llamaswap_models($results)
         $run = $running[$id] ?? null;
         if (isset($vram[$id]) && $vram[$id] > 0) {
             $model['props']['memory'] = llmstats_format_bytes($vram[$id] * 1048576);
+        }
+        if (isset($activity[$id]['speed'])) {
+            $model['props']['speed'] = $activity[$id]['speed'];
+        }
+        if (isset($activity[$id]['load'])) {
+            $model['props']['load'] = $activity[$id]['load'];
         }
 
         $quant = llmstats_swap_quant($entry, $run);
@@ -915,26 +971,12 @@ function llmstats_assemble_server_state($server, $results, $retry_seconds)
             $version_text .= ' ' . $swap_version['version'];
         }
 
-        // The fourth cell carries what Ollama never offered: live GPU memory
-        // and the median generation speed across recent requests.
         $gpu = llmstats_swap_gpu_summary($results);
-        $throughput = llmstats_swap_throughput_summary($results);
-        $extra_label = 'GPU';
-        $extra_value = $gpu;
-        if ($gpu !== '' && $throughput !== '') {
-            $extra_value = $gpu . ' · ' . $throughput;
-        } elseif ($gpu === '' && $throughput !== '') {
-            $extra_label = 'Speed';
-            $extra_value = $throughput;
-        } elseif ($gpu === '') {
-            $extra_value = 'Unavailable';
-        }
-
         $state['summary'] = [
             ['label' => 'Status', 'value' => 'Online'],
             ['label' => 'Type', 'value' => $version_text],
             ['label' => 'Models', 'value' => $loaded . ' loaded / ' . $state['modelCount']],
-            ['label' => $extra_label, 'value' => $extra_value]
+            ['label' => 'GPU Memory', 'value' => $gpu !== '' ? $gpu : 'Unavailable']
         ];
     } else {
         $state['summary'] = [

@@ -1,3 +1,7 @@
+### 2026.08.15e
+- Per-model Tok/s and Load columns: median generation speed from the recent request activity, and load time inferred from a load-triggering request's duration minus its inference time. Rows use auto-flowing even column tracks so stats stay evenly spaced.
+- Removed the aggregate tok/s from the summary strip; the per-model column replaces it. The fourth summary cell is now plain GPU memory.
+
 ### 2026.08.15d
 - Pinned the row action links against Unraid's global button styling (theme min-width was stretching the tint pill across the row) and widened the last summary cell so the GPU memory and tok/s reading no longer truncates.
 

@@ -376,7 +376,9 @@ EOT;
 }
 #db-llmstats .llm-model-row {
     display: grid;
-    grid-template-columns: 20px minmax(110px, 1fr) 76px;
+    grid-template-columns: 20px minmax(100px, 1fr) 76px;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(58px, 76px);
     align-items: center;
     min-height: 26px;
     padding: 0 8px 0 6px;
@@ -386,13 +388,6 @@ EOT;
 #db-llmstats .llm-model-row:last-child {
     border-bottom: 0;
 }
-#db-llmstats .llm-model-row.props-1 { grid-template-columns: 20px minmax(110px, 1fr) 76px 84px; }
-#db-llmstats .llm-model-row.props-2 { grid-template-columns: 20px minmax(110px, 1fr) 76px 84px 84px; }
-#db-llmstats .llm-model-row.props-3 { grid-template-columns: 20px minmax(110px, 1fr) 76px 84px 84px 70px; }
-#db-llmstats .llm-model-row.has-actions { grid-template-columns: 20px minmax(110px, 1fr) 76px 64px; }
-#db-llmstats .llm-model-row.props-1.has-actions { grid-template-columns: 20px minmax(110px, 1fr) 76px 84px 64px; }
-#db-llmstats .llm-model-row.props-2.has-actions { grid-template-columns: 20px minmax(110px, 1fr) 76px 84px 84px 64px; }
-#db-llmstats .llm-model-row.props-3.has-actions { grid-template-columns: 20px minmax(110px, 1fr) 76px 84px 84px 70px 64px; }
 #db-llmstats .llm-model-row.is-loaded {
     background: color-mix(in srgb, var(--llm-green) 5%, transparent);
 }
@@ -535,17 +530,8 @@ EOT;
     #db-llmstats .llm-head-prop {
         display: none;
     }
-    #db-llmstats .llm-model-row,
-    #db-llmstats .llm-model-row.props-1,
-    #db-llmstats .llm-model-row.props-2,
-    #db-llmstats .llm-model-row.props-3 {
+    #db-llmstats .llm-model-row {
         grid-template-columns: 20px minmax(0, 1fr) 76px;
-    }
-    #db-llmstats .llm-model-row.has-actions,
-    #db-llmstats .llm-model-row.props-1.has-actions,
-    #db-llmstats .llm-model-row.props-2.has-actions,
-    #db-llmstats .llm-model-row.props-3.has-actions {
-        grid-template-columns: 20px minmax(0, 1fr) 76px 64px;
     }
 }
 #db-llmstats .llm-empty {
@@ -646,6 +632,8 @@ EOT;
     var llmstatsPropOrder = [
         { field: 'quant', prop: 'quant', label: 'Quant' },
         { field: 'memory', prop: 'memory', label: 'Memory' },
+        { field: 'busy', prop: 'speed', label: 'Tok/s' },
+        { field: 'busy', prop: 'load', label: 'Load' },
         { field: 'busy', prop: 'ttl', label: 'TTL' }
     ];
 

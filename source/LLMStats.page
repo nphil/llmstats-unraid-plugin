@@ -324,7 +324,7 @@ EOT;
 }
 #db-llmstats .llm-server-status {
     display: grid;
-    grid-template-columns: minmax(160px, 1.4fr) repeat(4, minmax(90px, 1fr));
+    grid-template-columns: minmax(150px, 1.3fr) repeat(3, minmax(80px, 0.9fr)) minmax(160px, 1.2fr);
     border-bottom: 1px solid var(--llm-border);
     background: var(--llm-tab-surface);
 }
@@ -474,27 +474,30 @@ EOT;
 #db-llmstats .llm-model-action-button,
 #db-llmstats .llm-button.danger.llm-model-action-button {
     box-sizing: border-box;
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 0;
+    max-width: 70px;
     min-height: 0;
     margin: 0;
-    padding: 2px 2px;
+    padding: 2px 6px;
     border: none;
+    border-radius: 3px;
     background: transparent;
     color: var(--llm-muted-text);
     font-size: 9.5px;
     line-height: 1.4;
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    text-align: right;
+    text-align: center;
 }
 #db-llmstats .llm-button.danger.llm-model-action-button.llmstats-unload-model {
     color: color-mix(in srgb, var(--llm-red) 60%, var(--llm-muted-text));
     background: color-mix(in srgb, var(--llm-red) 7%, transparent);
-    padding: 2px 6px;
 }
 #db-llmstats .llm-model-action-button.llmstats-load-model {
     color: color-mix(in srgb, var(--llm-accent) 55%, var(--llm-muted-text));
     background: color-mix(in srgb, var(--llm-accent) 7%, transparent);
-    padding: 2px 6px;
 }
 #db-llmstats .llm-model-action-button.llmstats-unload-model:hover:not(:disabled),
 #db-llmstats .llm-model-action-button.llmstats-unload-model:active:not(:disabled) {

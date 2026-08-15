@@ -1,3 +1,6 @@
+### 2026.08.15d
+- Pinned the row action links against Unraid's global button styling (theme min-width was stretching the tint pill across the row) and widened the last summary cell so the GPU memory and tok/s reading no longer truncates.
+
 ### 2026.08.15c
 - Row action links carry a faint color tint at rest (red for Unload, accent for Load) so they read as tappable on touch devices; hover/press deepens the tint.
 

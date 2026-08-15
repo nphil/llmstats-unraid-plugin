@@ -2,7 +2,7 @@
 <!DOCTYPE PLUGIN [
  <!ENTITY name "llmstats">
  <!ENTITY author "nphil">
- <!ENTITY version "2026.08.15b">
+ <!ENTITY version "2026.08.15c">
  <!ENTITY branch "main">
  <!ENTITY gitURL "https://github.com/nphil/llmstats-unraid-plugin">
  <!ENTITY supportURL "https://github.com/nphil/llmstats-unraid-plugin/issues">
@@ -13,6 +13,9 @@
 <PLUGIN name="&name;" author="&author;" version="&version;" pluginURL="&selfURL;" min="6.9.0" support="&supportURL;">
 
 <CHANGES>
+### 2026.08.15c
+- Row action links carry a faint color tint at rest (red for Unload, accent for Load) so they read as tappable on touch devices; hover/press deepens the tint.
+
 ### 2026.08.15b
 - Model row actions are now quiet text links (muted uppercase, color on hover: red for Unload, accent for Load) instead of bordered buttons, with more separation from the TTL column.
 
@@ -55,7 +58,7 @@
 
 <FILE Name="/boot/config/plugins/&name;/&name;-&version;.txz" Run="upgradepkg --install-new">
 <URL>&pluginURL;</URL>
-<MD5>a50c57f9e36652fc0199aed4d5a0d844</MD5>
+<MD5>106c3ee9a911d0aecdb7f2a9a17ce51b</MD5>
 </FILE>
 
 <FILE Run="/bin/bash">

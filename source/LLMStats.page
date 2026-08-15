@@ -486,15 +486,27 @@ EOT;
     text-transform: uppercase;
     text-align: right;
 }
-#db-llmstats .llm-model-action-button.llmstats-unload-model:hover:not(:disabled) {
+#db-llmstats .llm-button.danger.llm-model-action-button.llmstats-unload-model {
+    color: color-mix(in srgb, var(--llm-red) 60%, var(--llm-muted-text));
+    background: color-mix(in srgb, var(--llm-red) 7%, transparent);
+    padding: 2px 6px;
+}
+#db-llmstats .llm-model-action-button.llmstats-load-model {
+    color: color-mix(in srgb, var(--llm-accent) 55%, var(--llm-muted-text));
+    background: color-mix(in srgb, var(--llm-accent) 7%, transparent);
+    padding: 2px 6px;
+}
+#db-llmstats .llm-model-action-button.llmstats-unload-model:hover:not(:disabled),
+#db-llmstats .llm-model-action-button.llmstats-unload-model:active:not(:disabled) {
     color: var(--llm-red);
     border: none;
-    background: transparent;
+    background: color-mix(in srgb, var(--llm-red) 12%, transparent);
 }
-#db-llmstats .llm-model-action-button.llmstats-load-model:hover:not(:disabled) {
+#db-llmstats .llm-model-action-button.llmstats-load-model:hover:not(:disabled),
+#db-llmstats .llm-model-action-button.llmstats-load-model:active:not(:disabled) {
     color: var(--llm-accent);
     border: none;
-    background: transparent;
+    background: color-mix(in srgb, var(--llm-accent) 12%, transparent);
 }
 #db-llmstats .llm-button:hover:not(:disabled) {
     color: var(--llm-accent);

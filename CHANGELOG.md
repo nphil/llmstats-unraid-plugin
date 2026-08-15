@@ -1,3 +1,6 @@
+### 2026.08.15c
+- Row action links carry a faint color tint at rest (red for Unload, accent for Load) so they read as tappable on touch devices; hover/press deepens the tint.
+
 ### 2026.08.15b
 - Model row actions are now quiet text links (muted uppercase, color on hover: red for Unload, accent for Load) instead of bordered buttons, with more separation from the TTL column.
 

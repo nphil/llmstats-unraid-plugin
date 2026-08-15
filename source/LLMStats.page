@@ -459,6 +459,7 @@ EOT;
 #db-llmstats .llm-row-actions {
     display: flex;
     justify-content: flex-end;
+    padding-left: 12px;
 }
 #db-llmstats .llm-button {
     min-height: 26px;
@@ -470,14 +471,30 @@ EOT;
     font-size: 12px;
     font-family: inherit;
 }
-#db-llmstats .llm-model-action-button {
+#db-llmstats .llm-model-action-button,
+#db-llmstats .llm-button.danger.llm-model-action-button {
     box-sizing: border-box;
-    min-height: 19px;
+    min-height: 0;
     margin: 0;
-    padding: 0 7px;
-    font-size: 10px;
-    line-height: 17px;
-    text-align: center;
+    padding: 2px 2px;
+    border: none;
+    background: transparent;
+    color: var(--llm-muted-text);
+    font-size: 9.5px;
+    line-height: 1.4;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    text-align: right;
+}
+#db-llmstats .llm-model-action-button.llmstats-unload-model:hover:not(:disabled) {
+    color: var(--llm-red);
+    border: none;
+    background: transparent;
+}
+#db-llmstats .llm-model-action-button.llmstats-load-model:hover:not(:disabled) {
+    color: var(--llm-accent);
+    border: none;
+    background: transparent;
 }
 #db-llmstats .llm-button:hover:not(:disabled) {
     color: var(--llm-accent);

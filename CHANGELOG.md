@@ -1,3 +1,6 @@
+### 2026.08.15b
+- Model row actions are now quiet text links (muted uppercase, color on hover: red for Unload, accent for Load) instead of bordered buttons, with more separation from the TTL column.
+
 ### 2026.08.15a
 - Redesigned the dashboard widget: models render as compact single-line rows under a sticky column-header (Model, State, Quant, Memory, TTL), state is a colored dot plus label instead of pulsing card borders, and the whole list fits without scrolling for typical model counts. The tab bar hides when only one server is configured.
 - Real per-model VRAM for llama-swap servers: nvidia-smi compute-apps PIDs are matched to model processes via /proc cmdline, so the Memory column shows each model's true GPU footprint (works when the plugin host is the GPU host; column stays empty otherwise).

@@ -920,10 +920,10 @@ if (!is_string($field_order_js)) {
 
     function llmstats_field_supported(server, field) {
       var type = llmstats_effective_type(server);
-      if (field === 'quant' || field === 'memory') return type === 'ollama';
-      if (field === 'busy') return type === 'ollama' || type === 'llama-server';
+      if (field === 'quant' || field === 'memory') return type === 'ollama' || type === 'llama-swap';
+      if (field === 'busy') return type === 'ollama' || type === 'llama-server' || type === 'llama-swap';
       if (field === 'actions') {
-        if (type === 'ollama') return true;
+        if (type === 'ollama' || type === 'llama-swap') return true;
         if (type === 'llama-server') {
           var status = server ? statusById[server.id] : null;
           return !!(status && status.supportsModelActions);

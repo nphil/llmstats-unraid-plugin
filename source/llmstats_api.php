@@ -632,6 +632,67 @@ function llmstats_swap_throughput_summary($results)
     return round((float)$p50, 1) . ' tok/s';
 }
 
+function llmstats_swap_process_memory($running)
+{
+    // Real per-model VRAM, possible only when this Unraid host is the GPU
+    // host: nvidia-smi reports host PIDs even for containerized processes,
+    // and /proc/<pid>/cmdline carries the model path for filename matching.
+    $bin = null;
+    foreach (['/usr/bin/nvidia-smi', '/usr/local/sbin/nvidia-smi', '/usr/sbin/nvidia-smi'] as $candidate) {
+        if (@is_executable($candidate)) {
+            $bin = $candidate;
+            break;
+        }
+    }
+    if ($bin === null) {
+        return [];
+    }
+
+    $out = @shell_exec(escapeshellarg($bin) . ' --query-compute-apps=pid,used_memory --format=csv,noheader,nounits 2>/dev/null');
+    if (!is_string($out) || trim($out) === '') {
+        return [];
+    }
+
+    $pid_mem = [];
+    foreach (explode("\n", trim($out)) as $line) {
+        $parts = array_map('trim', explode(',', $line));
+        if (count($parts) >= 2 && is_numeric($parts[0]) && is_numeric($parts[1])) {
+            $pid_mem[(int)$parts[0]] = (float)$parts[1]; // MiB
+        }
+    }
+    if (empty($pid_mem)) {
+        return [];
+    }
+
+    $file_to_model = [];
+    foreach ($running as $id => $entry) {
+        $cmd = (string)($entry['cmd'] ?? '');
+        if (preg_match('/-m(?:odel)?\s+(\S+\.(?:gguf|bin))/i', $cmd, $matches) === 1) {
+            $file_to_model[basename($matches[1])] = $id;
+        }
+    }
+    if (empty($file_to_model)) {
+        return [];
+    }
+
+    $result = [];
+    foreach ($pid_mem as $pid => $mib) {
+        $cmdline = @file_get_contents('/proc/' . $pid . '/cmdline');
+        if (!is_string($cmdline) || $cmdline === '') {
+            continue;
+        }
+        $cmdline = str_replace("\0", ' ', $cmdline);
+        foreach ($file_to_model as $file => $model_id) {
+            if (strpos($cmdline, $file) !== false) {
+                $result[$model_id] = ($result[$model_id] ?? 0) + $mib;
+                break;
+            }
+        }
+    }
+
+    return $result; // model id => MiB
+}
+
 function llmstats_build_llamaswap_models($results)
 {
     $listing = llmstats_http_json($results['swap_models'] ?? null);
@@ -647,6 +708,8 @@ function llmstats_build_llamaswap_models($results)
         }
     }
 
+    $vram = llmstats_swap_process_memory($running);
+
     $models = [];
     foreach (llmstats_llama_entry_list($listing) as $entry) {
         $id = llmstats_llama_model_id($entry);
@@ -656,6 +719,9 @@ function llmstats_build_llamaswap_models($results)
 
         $model = llmstats_new_model_entry($id, 'llama-swap');
         $run = $running[$id] ?? null;
+        if (isset($vram[$id]) && $vram[$id] > 0) {
+            $model['props']['memory'] = llmstats_format_bytes($vram[$id] * 1048576);
+        }
 
         $quant = llmstats_swap_quant($entry, $run);
         if ($quant !== '') {

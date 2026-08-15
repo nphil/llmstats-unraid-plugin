@@ -1,3 +1,8 @@
+### 2026.08.15a
+- Redesigned the dashboard widget: models render as compact single-line rows under a sticky column-header (Model, State, Quant, Memory, TTL), state is a colored dot plus label instead of pulsing card borders, and the whole list fits without scrolling for typical model counts. The tab bar hides when only one server is configured.
+- Real per-model VRAM for llama-swap servers: nvidia-smi compute-apps PIDs are matched to model processes via /proc cmdline, so the Memory column shows each model's true GPU footprint (works when the plugin host is the GPU host; column stays empty otherwise).
+- Settings: the model card field toggles now recognize llama-swap (previously every field showed as unsupported for that type).
+
 ### 2026.08.15
 - Fork: this is nphil/llmstats-unraid-plugin, continuing jo-sobo/llmstats-unraid-plugin (GPLv3) with llama-swap support.
 - New server type: llama-swap (github.com/mostlygeek/llama-swap). Model list from /models with per-model loaded/unloaded state, quantization parsed from the running process command line (with description and id fallbacks), residency/TTL shown per loaded model, and a summary row with the llama-swap version, live GPU memory from /api/performance, and median generation tok/s from /api/metrics/stats.

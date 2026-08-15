@@ -108,14 +108,35 @@ function llmstats_server_probe_requests($server)
         $requests['llama_models'] = $base . '/models';
         $requests['llama_slots'] = $base . '/slots';
     }
+    if ($type === 'auto' || $type === 'llama-swap') {
+        $requests['swap_version'] = $base . '/api/version';
+        $requests['swap_models'] = $base . '/models';
+        $requests['swap_running'] = $base . '/running';
+        $requests['swap_stats'] = $base . '/api/metrics/stats';
+        $requests['swap_perf'] = $base . '/api/performance';
+    }
 
     return $requests;
 }
 
 function llmstats_detect_server_type($results)
 {
+    // llama-swap must be checked before Ollama: it serves its own /api/version
+    // whose JSON also carries a "version" key, which would satisfy the Ollama
+    // probe and strand detection on a backend with no /api/tags. llama-swap's
+    // version JSON carries commit/build_date (Ollama's does not) and /running
+    // is unique to llama-swap.
+    $swap_version = llmstats_http_json($results['swap_version'] ?? null);
+    if (is_array($swap_version) && isset($swap_version['version'])
+        && (isset($swap_version['commit']) || isset($swap_version['build_date'])
+            || (($results['swap_running']['code'] ?? 0) === 200))) {
+        return 'llama-swap';
+    }
+
+    // Real Ollama always serves /api/tags; requiring it prevents any other
+    // server with a {"version": ...} endpoint from being misdetected.
     $version = llmstats_http_json($results['ollama_version'] ?? null);
-    if (is_array($version) && isset($version['version'])) {
+    if (is_array($version) && isset($version['version']) && (($results['ollama_tags']['code'] ?? 0) === 200)) {
         return 'ollama';
     }
 
@@ -133,6 +154,9 @@ function llmstats_type_label($type)
     }
     if ($type === 'llama-server') {
         return 'llama-server';
+    }
+    if ($type === 'llama-swap') {
+        return 'llama-swap';
     }
 
     return 'Unknown';
@@ -507,6 +531,168 @@ function llmstats_build_llama_models($results, $is_router, $slots_busy, $slots_t
     return $models;
 }
 
+function llmstats_swap_format_ttl($ttl)
+{
+    $ttl = is_numeric($ttl) ? (int)$ttl : -1;
+    if ($ttl === 0) {
+        return 'Resident';
+    }
+    if ($ttl < 0) {
+        return '';
+    }
+    if ($ttl >= 3600 && $ttl % 3600 === 0) {
+        return 'TTL ' . ($ttl / 3600) . 'h';
+    }
+    if ($ttl >= 60) {
+        return 'TTL ' . (int)round($ttl / 60) . 'm';
+    }
+
+    return 'TTL ' . $ttl . 's';
+}
+
+function llmstats_swap_quant($entry, $run)
+{
+    // Best source: the model file named in the running process command line.
+    $cmd = is_array($run) ? (string)($run['cmd'] ?? '') : '';
+    if ($cmd !== '' && preg_match('/-m(?:odel)?\s+(\S+\.(?:gguf|bin))/i', $cmd, $matches) === 1) {
+        $quant = llmstats_parse_quant_from_name(basename($matches[1]));
+        if ($quant !== '') {
+            return $quant;
+        }
+    }
+
+    // The description convention on this config carries the quant (e.g.
+    // "MoE UD-Q4_K_XL + vision mmproj"); fall back to the model id last.
+    foreach (['description', 'name', 'id'] as $key) {
+        $quant = llmstats_parse_quant_from_name((string)($entry[$key] ?? ''));
+        if ($quant !== '') {
+            return $quant;
+        }
+    }
+
+    return '';
+}
+
+function llmstats_swap_gpu_summary($results)
+{
+    $perf = llmstats_http_json($results['swap_perf'] ?? null);
+    $gpus = null;
+    foreach (['gpu_stats', 'gpus', 'gpu'] as $key) {
+        if (is_array($perf[$key] ?? null)) {
+            $gpus = llmstats_array_is_list($perf[$key]) ? $perf[$key] : [$perf[$key]];
+            break;
+        }
+    }
+    if ($gpus === null) {
+        return '';
+    }
+
+    // gpu_stats is a rolling time series (one sample per poll, same GPU);
+    // keep only the newest sample per GPU id, then sum across distinct GPUs.
+    $latest = [];
+    foreach ($gpus as $gpu) {
+        if (!is_array($gpu)) {
+            continue;
+        }
+        $gpu_id = (string)($gpu['uuid'] ?? ($gpu['id'] ?? '0'));
+        $latest[$gpu_id] = $gpu;
+    }
+
+    $used = 0.0;
+    $total = 0.0;
+    foreach ($latest as $gpu) {
+        foreach (['mem_used_mb', 'memory_used_mb', 'mem_used'] as $key) {
+            if (is_numeric($gpu[$key] ?? null)) {
+                $used += (float)$gpu[$key];
+                break;
+            }
+        }
+        foreach (['mem_total_mb', 'memory_total_mb', 'mem_total'] as $key) {
+            if (is_numeric($gpu[$key] ?? null)) {
+                $total += (float)$gpu[$key];
+                break;
+            }
+        }
+    }
+    if ($total <= 0) {
+        return '';
+    }
+
+    return round($used / 1024, 1) . '/' . round($total / 1024, 1) . ' GB';
+}
+
+function llmstats_swap_throughput_summary($results)
+{
+    $stats = llmstats_http_json($results['swap_stats'] ?? null);
+    $p50 = $stats['gen_histogram']['p50'] ?? null;
+    if (!is_numeric($p50) || (float)$p50 <= 0) {
+        return '';
+    }
+
+    return round((float)$p50, 1) . ' tok/s';
+}
+
+function llmstats_build_llamaswap_models($results)
+{
+    $listing = llmstats_http_json($results['swap_models'] ?? null);
+    $running_json = llmstats_http_json($results['swap_running'] ?? null);
+
+    $running = [];
+    if (is_array($running_json['running'] ?? null)) {
+        foreach ($running_json['running'] as $entry) {
+            $id = (string)($entry['model'] ?? '');
+            if ($id !== '') {
+                $running[$id] = $entry;
+            }
+        }
+    }
+
+    $models = [];
+    foreach (llmstats_llama_entry_list($listing) as $entry) {
+        $id = llmstats_llama_model_id($entry);
+        if ($id === '') {
+            continue;
+        }
+
+        $model = llmstats_new_model_entry($id, 'llama-swap');
+        $run = $running[$id] ?? null;
+
+        $quant = llmstats_swap_quant($entry, $run);
+        if ($quant !== '') {
+            $model['props']['quant'] = $quant;
+        }
+
+        $process_state = is_array($run) ? strtolower((string)($run['state'] ?? '')) : '';
+        $listed_state = llmstats_llama_model_state($entry);
+
+        if ($process_state === 'starting') {
+            llmstats_set_model_state($model, 'loading');
+            $model['loadUnavailableReason'] = 'Model is already loading.';
+        } elseif ($process_state === 'ready' || $listed_state === 'loaded') {
+            llmstats_set_model_state($model, 'loaded');
+            $ttl = llmstats_swap_format_ttl(is_array($run) ? ($run['ttl'] ?? -1) : -1);
+            llmstats_mark_model_loaded($model, true, $ttl !== '' ? $ttl : 'Can unload');
+            if ($ttl !== '') {
+                // Residency/TTL is the llama-swap analogue of Ollama's keep-alive.
+                $model['props']['ttl'] = $ttl;
+            }
+        } elseif ($listed_state === 'failed') {
+            llmstats_set_model_state($model, 'failed');
+            $model['canLoad'] = true;
+            $model['loadUnavailableReason'] = '';
+        } else {
+            // Unloaded: llama-swap loads on demand, so a load action is always
+            // available (it pins the model via /upstream and waits for health).
+            $model['canLoad'] = true;
+            $model['loadUnavailableReason'] = '';
+        }
+
+        $models[] = $model;
+    }
+
+    return $models;
+}
+
 function llmstats_parse_llama_slots($results)
 {
     $slots = llmstats_http_json($results['llama_slots'] ?? null);
@@ -591,6 +777,9 @@ function llmstats_assemble_server_state($server, $results, $retry_seconds)
         $online = (($results['llama_health']['code'] ?? 0) === 200)
             || (($results['llama_props']['code'] ?? 0) === 200)
             || (($results['llama_v1_models']['code'] ?? 0) === 200);
+    } elseif ($type === 'llama-swap') {
+        $online = (($results['swap_version']['code'] ?? 0) === 200)
+            || (($results['swap_models']['code'] ?? 0) === 200);
     }
 
     if (!$online) {
@@ -618,6 +807,9 @@ function llmstats_assemble_server_state($server, $results, $retry_seconds)
     if ($type === 'ollama') {
         $state['supportsModelActions'] = true;
         $state['models'] = llmstats_build_ollama_models($results);
+    } elseif ($type === 'llama-swap') {
+        $state['supportsModelActions'] = true;
+        $state['models'] = llmstats_build_llamaswap_models($results);
     } else {
         $slots = llmstats_parse_llama_slots($results);
         $is_router = llmstats_llama_is_router(llmstats_http_json($results['llama_models'] ?? null));
@@ -649,6 +841,34 @@ function llmstats_assemble_server_state($server, $results, $retry_seconds)
             ['label' => 'Type', 'value' => 'Ollama'],
             ['label' => 'Models', 'value' => $state['modelCount'] . ' available'],
             ['label' => 'Loaded', 'value' => $loaded . ' loaded']
+        ];
+    } elseif ($type === 'llama-swap') {
+        $swap_version = llmstats_http_json($results['swap_version'] ?? null);
+        $version_text = 'llama-swap';
+        if (is_string($swap_version['version'] ?? null) && $swap_version['version'] !== '') {
+            $version_text .= ' ' . $swap_version['version'];
+        }
+
+        // The fourth cell carries what Ollama never offered: live GPU memory
+        // and the median generation speed across recent requests.
+        $gpu = llmstats_swap_gpu_summary($results);
+        $throughput = llmstats_swap_throughput_summary($results);
+        $extra_label = 'GPU';
+        $extra_value = $gpu;
+        if ($gpu !== '' && $throughput !== '') {
+            $extra_value = $gpu . ' · ' . $throughput;
+        } elseif ($gpu === '' && $throughput !== '') {
+            $extra_label = 'Speed';
+            $extra_value = $throughput;
+        } elseif ($gpu === '') {
+            $extra_value = 'Unavailable';
+        }
+
+        $state['summary'] = [
+            ['label' => 'Status', 'value' => 'Online'],
+            ['label' => 'Type', 'value' => $version_text],
+            ['label' => 'Models', 'value' => $loaded . ' loaded / ' . $state['modelCount']],
+            ['label' => $extra_label, 'value' => $extra_value]
         ];
     } else {
         $state['summary'] = [
@@ -703,6 +923,9 @@ function llmstats_resolve_server_type($server)
     $base = rtrim($server['url'], '/');
     $results = llmstats_http_multi([
         'ollama_version' => $base . '/api/version',
+        'ollama_tags' => $base . '/api/tags',
+        'swap_version' => $base . '/api/version',
+        'swap_running' => $base . '/running',
         'llama_health' => $base . '/health',
         'llama_props' => $base . '/props'
     ]);
@@ -721,6 +944,12 @@ function llmstats_unload_requests($server, $type, $models)
                 'url' => $base . '/api/generate',
                 'method' => 'POST',
                 'body' => json_encode(['model' => $model, 'keep_alive' => 0])
+            ];
+        } elseif ($type === 'llama-swap') {
+            $requests['unload' . $index] = [
+                'url' => $base . '/api/models/unload/' . rawurlencode($model),
+                'method' => 'POST',
+                'body' => ''
             ];
         } else {
             $requests['unload' . $index] = [
@@ -743,6 +972,15 @@ function llmstats_load_request($server, $type, $model)
             'url' => $base . '/api/generate',
             'method' => 'POST',
             'body' => json_encode(['model' => $model, 'prompt' => '', 'stream' => false])
+        ];
+    }
+
+    if ($type === 'llama-swap') {
+        // llama-swap loads on demand: /upstream pins the model, triggers the
+        // swap, and answers once the underlying server's health check passes.
+        return [
+            'url' => $base . '/upstream/' . rawurlencode($model) . '/health',
+            'method' => 'GET'
         ];
     }
 
@@ -793,11 +1031,12 @@ function llmstats_action_error($result, $type, $verb)
 function llmstats_run_load($server, $model)
 {
     $type = llmstats_resolve_server_type($server);
-    if ($type !== 'ollama' && $type !== 'llama-server') {
+    if (!in_array($type, ['ollama', 'llama-server', 'llama-swap'], true)) {
         return ['ok' => false, 'error' => 'Server type could not be determined.'];
     }
 
-    $results = llmstats_http_multi(['load' => llmstats_load_request($server, $type, $model)], 3, 60);
+    // llama-swap loads can take a while (a 17GB model reads ~35s from disk).
+    $results = llmstats_http_multi(['load' => llmstats_load_request($server, $type, $model)], 3, $type === 'llama-swap' ? 120 : 60);
     $error = llmstats_action_error($results['load'] ?? [], $type, 'load');
     if ($error === '') {
         return ['ok' => true, 'loaded' => 1];
@@ -809,7 +1048,7 @@ function llmstats_run_load($server, $model)
 function llmstats_run_unload($server, $models)
 {
     $type = llmstats_resolve_server_type($server);
-    if ($type !== 'ollama' && $type !== 'llama-server') {
+    if (!in_array($type, ['ollama', 'llama-server', 'llama-swap'], true)) {
         return ['ok' => false, 'error' => 'Server type could not be determined.'];
     }
 

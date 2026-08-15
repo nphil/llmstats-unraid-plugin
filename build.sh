@@ -2,9 +2,9 @@
 set -euo pipefail
 
 PLUGIN_NAME="llmstats"
-AUTHOR="jo-sobo"
-GIT_URL="https://github.com/${AUTHOR}/llmstats-unraid-plugin"
-SUPPORT_URL="https://forums.unraid.net/topic/199438-plugin-llmstats"
+AUTHOR="nphil"
+GIT_URL="https://github.com/nphil/llmstats-unraid-plugin"
+SUPPORT_URL="https://github.com/nphil/llmstats-unraid-plugin/issues"
 PACKAGE_DIR_FINAL="packages"
 PACKAGE_DIR_TEMP="package-temp"
 CHANGELOG_FILE="CHANGELOG.md"
@@ -54,7 +54,7 @@ if [[ "$STAGE_INPUT" == "dev" ]]; then
 ${CHANGELOG_TEXT}"
 else
   BRANCH="main"
-  PLUGIN_URL_STRUCTURE="&gitURL;/releases/download/&version;/&name;-&version;.txz"
+  PLUGIN_URL_STRUCTURE="&gitURL;/raw/&branch;/packages/&name;-&version;.txz"
   CHANGES_TEXT="${CHANGELOG_TEXT}"
 fi
 
@@ -78,7 +78,13 @@ FILENAME="${PLUGIN_NAME}-${VERSION}"
 PACKAGE_PATH="${PACKAGE_DIR_FINAL}/${FILENAME}.txz"
 
 echo "Creating package: ${FILENAME}.txz"
-COPYFILE_DISABLE=1 tar -C "${PACKAGE_DIR_TEMP}" --uid 0 --gid 0 --numeric-owner -cJf "${PACKAGE_PATH}" usr
+# GNU tar and bsdtar spell root-ownership differently.
+if tar --version 2>/dev/null | grep -q "GNU tar"; then
+    TAR_OWNER_FLAGS=(--owner=0 --group=0)
+else
+    TAR_OWNER_FLAGS=(--uid 0 --gid 0)
+fi
+COPYFILE_DISABLE=1 tar -C "${PACKAGE_DIR_TEMP}" "${TAR_OWNER_FLAGS[@]}" --numeric-owner -cJf "${PACKAGE_PATH}" usr
 
 if [ ! -f "${PACKAGE_PATH}" ]; then
     echo "Error: Package creation failed!"

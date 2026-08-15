@@ -774,6 +774,7 @@ if (!is_string($field_order_js)) {
                       <option value="auto">Autodetect</option>
                       <option value="ollama">Ollama</option>
                       <option value="llama-server">llama-server</option>
+                      <option value="llama-swap">llama-swap</option>
                     </select>
                   </div>
                 </div>

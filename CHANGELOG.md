@@ -1,3 +1,10 @@
+### 2026.08.15
+- Fork: this is nphil/llmstats-unraid-plugin, continuing jo-sobo/llmstats-unraid-plugin (GPLv3) with llama-swap support.
+- New server type: llama-swap (github.com/mostlygeek/llama-swap). Model list from /models with per-model loaded/unloaded state, quantization parsed from the running process command line (with description and id fallbacks), residency/TTL shown per loaded model, and a summary row with the llama-swap version, live GPU memory from /api/performance, and median generation tok/s from /api/metrics/stats.
+- Working load/unload for llama-swap: load pins the model through /upstream/{model}/health (triggers the swap, waits for readiness, 120s budget), unload posts to /api/models/unload/{model}.
+- Fixed autodetection misidentifying llama-swap as Ollama: llama-swap serves its own /api/version whose JSON also has a "version" key, which previously short-circuited detection and produced an online server with zero models. Detection now checks llama-swap first (commit/build_date in the version JSON, or /running answering) and only concludes Ollama when /api/tags also answers.
+- Model cards support an optional TTL row (shown with the busy/idle field for llama-swap servers; omitted entirely elsewhere instead of rendering "Unavailable").
+
 ### 2026.06.23
 - Model card border is now yellow for loading models and light blue for sleeping models.
 

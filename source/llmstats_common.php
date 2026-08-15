@@ -108,7 +108,7 @@ function llmstats_theme_is_light()
 
 function llmstats_server_types()
 {
-    return ['auto', 'ollama', 'llama-server'];
+    return ['auto', 'ollama', 'llama-server', 'llama-swap'];
 }
 
 function llmstats_model_fields()

@@ -1,18 +1,25 @@
 <?xml version='1.0' standalone='yes'?>
 <!DOCTYPE PLUGIN [
  <!ENTITY name "llmstats">
- <!ENTITY author "jo-sobo">
- <!ENTITY version "2026.06.23">
+ <!ENTITY author "nphil">
+ <!ENTITY version "2026.08.15">
  <!ENTITY branch "main">
- <!ENTITY gitURL "https://github.com/jo-sobo/llmstats-unraid-plugin">
- <!ENTITY supportURL "https://forums.unraid.net/topic/199438-plugin-llmstats">
- <!ENTITY pluginURL "&gitURL;/releases/download/&version;/&name;-&version;.txz">
+ <!ENTITY gitURL "https://github.com/nphil/llmstats-unraid-plugin">
+ <!ENTITY supportURL "https://github.com/nphil/llmstats-unraid-plugin/issues">
+ <!ENTITY pluginURL "&gitURL;/raw/&branch;/packages/&name;-&version;.txz">
  <!ENTITY selfURL "&gitURL;/raw/&branch;/&name;.plg">
 ]>
 
 <PLUGIN name="&name;" author="&author;" version="&version;" pluginURL="&selfURL;" min="6.9.0" support="&supportURL;">
 
 <CHANGES>
+### 2026.08.15
+- Fork: this is nphil/llmstats-unraid-plugin, continuing jo-sobo/llmstats-unraid-plugin (GPLv3) with llama-swap support.
+- New server type: llama-swap (github.com/mostlygeek/llama-swap). Model list from /models with per-model loaded/unloaded state, quantization parsed from the running process command line (with description and id fallbacks), residency/TTL shown per loaded model, and a summary row with the llama-swap version, live GPU memory from /api/performance, and median generation tok/s from /api/metrics/stats.
+- Working load/unload for llama-swap: load pins the model through /upstream/{model}/health (triggers the swap, waits for readiness, 120s budget), unload posts to /api/models/unload/{model}.
+- Fixed autodetection misidentifying llama-swap as Ollama: llama-swap serves its own /api/version whose JSON also has a "version" key, which previously short-circuited detection and produced an online server with zero models. Detection now checks llama-swap first (commit/build_date in the version JSON, or /running answering) and only concludes Ollama when /api/tags also answers.
+- Model cards support an optional TTL row (shown with the busy/idle field for llama-swap servers; omitted entirely elsewhere instead of rendering "Unavailable").
+
 ### 2026.06.23
 - Model card border is now yellow for loading models and light blue for sleeping models.
 
@@ -40,7 +47,7 @@
 
 <FILE Name="/boot/config/plugins/&name;/&name;-&version;.txz" Run="upgradepkg --install-new">
 <URL>&pluginURL;</URL>
-<MD5>2fa8a08e3dd727086efc8ac3c126e2d3</MD5>
+<MD5>c27cc7184c2169b42af5c3a5f21735df</MD5>
 </FILE>
 
 <FILE Run="/bin/bash">

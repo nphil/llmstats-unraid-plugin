@@ -605,7 +605,8 @@ EOT;
     var llmstatsPropOrder = [
         { field: 'quant', prop: 'quant', label: 'Quant' },
         { field: 'memory', prop: 'memory', label: 'Memory' },
-        { field: 'busy', prop: 'state', label: 'State' }
+        { field: 'busy', prop: 'state', label: 'State' },
+        { field: 'busy', prop: 'ttl', label: 'TTL', optional: true }
     ];
 
     function llmstats_text(key, fallback) {
@@ -778,9 +779,13 @@ EOT;
         card.append(main);
 
         enabledProps.forEach(function(entry) {
+            var value = (model.props || {})[entry.prop] || '';
+            if (!value && entry.optional) {
+                return;
+            }
             var prop = $('<div>').addClass('llm-model-prop');
             $('<div>').addClass('llm-label').text(entry.label).appendTo(prop);
-            $('<div>').addClass('llm-value').text((model.props || {})[entry.prop] || 'Unavailable').appendTo(prop);
+            $('<div>').addClass('llm-value').text(value || 'Unavailable').appendTo(prop);
             card.append(prop);
         });
 
